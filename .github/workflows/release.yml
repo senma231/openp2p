@@ -1,0 +1,55 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build Client
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: openp2p-client-linux
+            asset_name: openp2p-client-linux.tar.gz
+          - os: windows-latest
+            artifact_name: openp2p-client-windows
+            asset_name: openp2p-client-windows.zip
+          - os: macos-latest
+            artifact_name: openp2p-client-macos
+            asset_name: openp2p-client-macos.zip
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '1.18'
+
+      - name: Build
+        run: |
+          cd cmd/client
+          go build -o ${{ matrix.artifact_name }}
+          
+      - name: Package
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            tar czf ${{ matrix.asset_name }} ${{ matrix.artifact_name }} config.json.example
+          else
+            zip ${{ matrix.asset_name }} ${{ matrix.artifact_name }} config.json.example
+          fi
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./${{ matrix.asset_name }}
+          asset_name: ${{ matrix.asset_name }}
+          asset_content_type: application/octet-stream 

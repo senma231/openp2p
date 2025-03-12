@@ -1,0 +1,121 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.20']
+        node-version: ['16']
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: 'source/web/package-lock.json'
+
+    - name: Install Go dependencies
+      run: |
+        cd source/core
+        go mod download
+
+    - name: Build backend
+      run: |
+        cd source/core
+        go build -v ./...
+
+    - name: Test backend
+      run: |
+        cd source/core
+        go test -v ./...
+
+    - name: Install frontend dependencies
+      run: |
+        cd source/web
+        npm ci
+
+    - name: Build frontend
+      run: |
+        cd source/web
+        npm run build
+
+    - name: Test frontend
+      run: |
+        cd source/web
+        npm run test:unit
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.20'
+
+    - name: Build for multiple platforms
+      run: |
+        cd source/core
+        GOOS=linux GOARCH=amd64 go build -o ../dist/openp2p-linux-amd64
+        GOOS=windows GOARCH=amd64 go build -o ../dist/openp2p-windows-amd64.exe
+        GOOS=darwin GOARCH=amd64 go build -o ../dist/openp2p-darwin-amd64
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: Release v${{ github.run_number }}
+        draft: false
+        prerelease: false
+
+    - name: Upload Linux Binary
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./source/dist/openp2p-linux-amd64
+        asset_name: openp2p-linux-amd64
+        asset_content_type: application/octet-stream
+
+    - name: Upload Windows Binary
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./source/dist/openp2p-windows-amd64.exe
+        asset_name: openp2p-windows-amd64.exe
+        asset_content_type: application/octet-stream
+
+    - name: Upload macOS Binary
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./source/dist/openp2p-darwin-amd64
+        asset_name: openp2p-darwin-amd64
+        asset_content_type: application/octet-stream 
