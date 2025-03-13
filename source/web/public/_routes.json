@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "https://api.openp2p.909981.xyz/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ]
+} 
