@@ -1,4 +1,4 @@
-name: Release Build
+name: Build and Release
 
 on:
   push:
@@ -7,49 +7,90 @@ on:
 
 jobs:
   build:
-    name: Build Client
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        include:
-          - os: ubuntu-latest
-            artifact_name: openp2p-client-linux
-            asset_name: openp2p-client-linux.tar.gz
-          - os: windows-latest
-            artifact_name: openp2p-client-windows
-            asset_name: openp2p-client-windows.zip
-          - os: macos-latest
-            artifact_name: openp2p-client-macos
-            asset_name: openp2p-client-macos.zip
-
+    name: Build and Release
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v4
         with:
-          go-version: '1.18'
+          go-version: '1.20'
 
-      - name: Build
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Create release directory
+        run: mkdir -p release/${{ env.VERSION }}
+
+      - name: Build Windows client
         run: |
-          cd cmd/client
-          go build -o ${{ matrix.artifact_name }}
+          cd source
+          GOOS=windows GOARCH=amd64 go build -o "../release/${{ env.VERSION }}/openp2p-windows-amd64.exe" ./cmd/openp2p.go
+          cd ..
+
+      - name: Build Linux client
+        run: |
+          cd source
+          GOOS=linux GOARCH=amd64 go build -o "../release/${{ env.VERSION }}/openp2p-linux-amd64" ./cmd/openp2p.go
+          cd ..
+
+      - name: Build macOS client
+        run: |
+          cd source
+          GOOS=darwin GOARCH=amd64 go build -o "../release/${{ env.VERSION }}/openp2p-macos-amd64" ./cmd/openp2p.go
+          cd ..
+
+      - name: Copy documentation and config files
+        run: |
+          cp README.md "release/${{ env.VERSION }}/"
+          cp VERSION.md "release/${{ env.VERSION }}/"
+          cp 客户端安装指南.md "release/${{ env.VERSION }}/"
+          cp source/config.json "release/${{ env.VERSION }}/"
+
+      - name: Create ZIP archives
+        run: |
+          cd "release/${{ env.VERSION }}"
+          zip -r "../openp2p-windows-amd64-${{ env.VERSION }}.zip" openp2p-windows-amd64.exe README.md VERSION.md 客户端安装指南.md config.json
+          zip -r "../openp2p-linux-amd64-${{ env.VERSION }}.zip" openp2p-linux-amd64 README.md VERSION.md 客户端安装指南.md config.json
+          zip -r "../openp2p-macos-amd64-${{ env.VERSION }}.zip" openp2p-macos-amd64 README.md VERSION.md 客户端安装指南.md config.json
+          cd ../..
+
+      - name: Create release notes
+        run: |
+          cat > "release/release_notes_${{ env.VERSION }}.md" << EOF
+          # OpenP2P ${{ env.VERSION }} 发布说明
           
-      - name: Package
-        run: |
-          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            tar czf ${{ matrix.asset_name }} ${{ matrix.artifact_name }} config.json.example
-          else
-            zip ${{ matrix.asset_name }} ${{ matrix.artifact_name }} config.json.example
-          fi
+          ## 更新内容
+          
+          - 修复了 TOTP 验证问题，增加了时间偏移容忍度
+          - 优化了项目结构，删除了废弃的文件和脚本
+          - 其他 bug 修复和性能优化
+          
+          ## 下载
+          
+          - [Windows 64位](openp2p-windows-amd64-${{ env.VERSION }}.zip)
+          - [Linux 64位](openp2p-linux-amd64-${{ env.VERSION }}.zip)
+          - [macOS 64位](openp2p-macos-amd64-${{ env.VERSION }}.zip)
+          
+          ## 安装说明
+          
+          请参考压缩包中的 \`客户端安装指南.md\` 文件。
+          
+          ## 配置说明
+          
+          默认配置文件为 \`config.json\`，您可以根据需要修改。
+          EOF
 
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./${{ matrix.asset_name }}
-          asset_name: ${{ matrix.asset_name }}
-          asset_content_type: application/octet-stream 
+          files: |
+            release/openp2p-windows-amd64-${{ env.VERSION }}.zip
+            release/openp2p-linux-amd64-${{ env.VERSION }}.zip
+            release/openp2p-macos-amd64-${{ env.VERSION }}.zip
+          body_path: release/release_notes_${{ env.VERSION }}.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
