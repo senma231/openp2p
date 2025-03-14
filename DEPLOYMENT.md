@@ -1,6 +1,45 @@
 # OpenP2P 部署指南
 
-## 前端部署 (Cloudflare Pages)
+## 自动化部署
+
+### Linux系统部署
+
+1. **下载部署脚本**
+   ```bash
+   wget https://raw.githubusercontent.com/senma231/openp2p/main/deploy.sh
+   chmod +x deploy.sh
+   ```
+
+2. **运行部署脚本**
+   ```bash
+   sudo ./deploy.sh
+   ```
+
+3. **验证部署**
+   ```bash
+   # 检查服务状态
+   sudo systemctl status openp2p
+   sudo systemctl status nginx
+
+   # 检查日志
+   sudo journalctl -u openp2p -f
+   ```
+
+### Windows系统部署
+
+1. **下载部署脚本**
+   - 从GitHub下载 `deploy.bat`
+   - 右键点击脚本，选择"以管理员身份运行"
+
+2. **验证部署**
+   ```cmd
+   # 检查服务状态
+   sc query OpenP2P
+   ```
+
+## 手动部署步骤
+
+### 前端部署 (Cloudflare Pages)
 
 1. **准备工作**
    - 确保您有一个GitHub账号
@@ -19,8 +58,9 @@
       - 构建输出目录：`source/web/dist`
       - 环境变量：
         ```
-        VITE_API_URL=https://your-api-server.com
+        VITE_API_URL=https://api.openp2p.909981.xyz
         NODE_VERSION=16
+        IS_CLOUDFLARE=true
         ```
       - 根目录：`/`
    7. 点击"保存并部署"
@@ -30,7 +70,7 @@
    - `NODE_VERSION`: Node.js版本，建议使用16或更高版本
    - `IS_CLOUDFLARE`: 设置为true（Cloudflare环境标识）
 
-## 后端部署
+### 后端部署
 
 1. **系统要求**
    - Go 1.20或更高版本
@@ -52,7 +92,7 @@
 3. **编译**
    ```bash
    # 克隆代码
-   git clone https://github.com/your-username/openp2p.git
+   git clone https://github.com/senma231/openp2p.git
    cd openp2p
 
    # 安装依赖
@@ -127,86 +167,28 @@
 
 ## 安全配置
 
-1. **防火墙设置**
-   ```bash
-   # 安装ufw（如果未安装）
-   sudo apt install ufw
+1. **Cloudflare SSL配置**
+   1. 登录Cloudflare Dashboard
+   2. 进入SSL/TLS页面
+   3. 将SSL/TLS加密模式设置为"Full"
+   4. 在"Edge Certificates"中启用以下选项：
+      - Always Use HTTPS
+      - Automatic HTTPS Rewrites
+      - Minimum TLS Version: 1.2
 
-   # 配置防火墙规则
-   sudo ufw allow ssh
-   sudo ufw allow 27183/tcp  # API端口
-   sudo ufw allow 27182/tcp  # P2P端口
-   sudo ufw allow 27182/udp  # P2P端口
-
-   # 启用防火墙
-   sudo ufw enable
-   ```
-
-2. **SSL配置（推荐）**
-   安装和配置Nginx：
-   ```bash
-   # 安装Nginx
-   sudo apt install nginx
-
-   # 安装certbot
-   sudo apt install certbot python3-certbot-nginx
-   ```
-
-   获取SSL证书：
-   ```bash
-   sudo certbot --nginx -d your-api-server.com
-   ```
-
-   Nginx配置文件 `/etc/nginx/sites-available/openp2p`:
-   ```nginx
-   server {
-       listen 443 ssl http2;
-       server_name your-api-server.com;
-
-       ssl_certificate /etc/letsencrypt/live/your-api-server.com/fullchain.pem;
-       ssl_certificate_key /etc/letsencrypt/live/your-api-server.com/privkey.pem;
-
-       # SSL配置
-       ssl_protocols TLSv1.2 TLSv1.3;
-       ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
-       ssl_prefer_server_ciphers off;
-       ssl_session_timeout 1d;
-       ssl_session_cache shared:SSL:50m;
-       ssl_stapling on;
-       ssl_stapling_verify on;
-
-       # CORS配置
-       add_header 'Access-Control-Allow-Origin' 'https://your-cloudflare-pages-domain.pages.dev';
-       add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS';
-       add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization';
-       add_header 'Access-Control-Allow-Credentials' 'true';
-
-       location / {
-           proxy_pass http://localhost:27183;
-           proxy_http_version 1.1;
-           proxy_set_header Upgrade $http_upgrade;
-           proxy_set_header Connection 'upgrade';
-           proxy_set_header Host $host;
-           proxy_set_header X-Real-IP $remote_addr;
-           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-           proxy_set_header X-Forwarded-Proto $scheme;
-           proxy_cache_bypass $http_upgrade;
-       }
-   }
-
-   server {
-       listen 80;
-       server_name your-api-server.com;
-       return 301 https://$server_name$request_uri;
-   }
-   ```
-
-   启用配置：
-   ```bash
-   sudo ln -s /etc/nginx/sites-available/openp2p /etc/nginx/sites-enabled/
-   sudo nginx -t
-   sudo systemctl restart nginx
-   ```
+2. **DNS配置**
+   1. 在Cloudflare DNS页面添加以下记录：
+      - 记录1（前端）:
+        - 类型：CNAME
+        - 名称：openp2p
+        - 目标：[您的Cloudflare Pages域名]
+        - 代理状态：已代理（橙色云朵）
+      
+      - 记录2（API）:
+        - 类型：A
+        - 名称：api.openp2p
+        - IPv4地址：您的服务器IP
+        - 代理状态：已代理（橙色云朵）
 
 ## 故障排查
 
@@ -226,39 +208,17 @@
    - **API无法访问**
      1. 检查服务状态：`sudo systemctl status openp2p`
      2. 检查端口占用：`sudo lsof -i :27183`
-     3. 检查防火墙：`sudo ufw status`
+     3. 检查Cloudflare DNS配置
 
    - **前端无法连接API**
-     1. 检查CORS配置
+     1. 检查Cloudflare SSL配置
      2. 验证API地址配置是否正确
-     3. 检查SSL证书是否有效
+     3. 检查Cloudflare DNS配置
 
    - **服务启动失败**
      1. 检查日志：`sudo journalctl -u openp2p -n 50`
      2. 检查配置文件权限
      3. 验证端口是否被占用
-
-3. **性能优化**
-   - 调整系统参数：
-     ```bash
-     # 编辑系统限制
-     sudo nano /etc/security/limits.conf
-     ```
-     添加：
-     ```
-     *         soft    nofile      65535
-     *         hard    nofile      65535
-     ```
-
-   - 调整内核参数：
-     ```bash
-     sudo nano /etc/sysctl.conf
-     ```
-     添加：
-     ```
-     net.core.somaxconn = 65535
-     net.ipv4.tcp_max_syn_backlog = 65535
-     ```
 
 ## 更新部署
 
