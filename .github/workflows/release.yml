@@ -48,7 +48,7 @@ jobs:
           cp README.md "release/${{ env.VERSION }}/"
           cp VERSION.md "release/${{ env.VERSION }}/"
           cp 客户端安装指南.md "release/${{ env.VERSION }}/"
-          cp source/config.json "release/${{ env.VERSION }}/"
+          cp source/config.json.example "release/${{ env.VERSION }}/config.json"
 
       - name: Create ZIP archives
         run: |

@@ -1,0 +1,14 @@
+{
+  "server": "api.openp2p.909981.xyz",
+  "port": 27183,
+  "username": "",
+  "password": "",
+  "token": "",
+  "bind": "0.0.0.0",
+  "p2p_port": 0,
+  "log_level": 2,
+  "auto_start": false,
+  "auto_login": false,
+  "language": "zh_CN",
+  "theme": "light"
+} 
