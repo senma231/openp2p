@@ -2,7 +2,9 @@ package core
 
 import (
 	"bytes"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha1"
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/binary"
@@ -16,7 +18,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openp2p-cn/totp"
 	"github.com/skip2/go-qrcode"
 )
 
@@ -397,20 +398,32 @@ func validateTOTP(key string, code string) bool {
 	}
 
 	// 使用 TOTP 验证
-	t := &totp.TOTP{Step: 30}
-	now := time.Now().Unix()
-
-	// 验证当前时间窗口的TOTP码
-	valid := false
-	for offset := -1; offset <= 1; offset++ {
-		if t.Verify(codeNum, binary.BigEndian.Uint64(keyBytes), now+int64(offset*30)) {
-			valid = true
-			break
+	// 增加时间偏移容忍度，允许前后1分钟的验证码
+	now := time.Now()
+	for _, offset := range []int{-60, -30, 0, 30, 60} {
+		testTime := now.Add(time.Duration(offset) * time.Second)
+		if validateTOTPAtTime(keyBytes, codeNum, testTime) {
+			return true
 		}
 	}
 
-	log.Printf("TOTP verification result: %v (code: %s)", valid, code)
-	return valid
+	return false
+}
+
+// 在特定时间点验证TOTP码
+func validateTOTPAtTime(key []byte, code uint64, t time.Time) bool {
+	// 计算TOTP
+	timeCounter := uint64(t.Unix()) / 30
+	h := hmac.New(sha1.New, key)
+	binary.Write(h, binary.BigEndian, timeCounter)
+	sum := h.Sum(nil)
+
+	// RFC 4226/RFC 6238 截断
+	offset := sum[len(sum)-1] & 0x0F
+	truncatedHash := binary.BigEndian.Uint32(sum[offset:offset+4]) & 0x7FFFFFFF
+	hotp := uint64(truncatedHash % 1000000)
+
+	return hotp == code
 }
 
 // 辅助函数：生成token
