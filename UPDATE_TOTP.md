@@ -1,126 +1,77 @@
-# TOTP验证更新指南
+# TOTP验证修复说明
 
-为了解决TOTP验证失败的问题，我们修改了`validateTOTP`函数，增加了时间偏移容忍度，允许前后1分钟的验证码。
+## 问题描述
 
-## 服务器更新步骤
+在不同时区的服务器上，TOTP（基于时间的一次性密码）验证可能会失败，因为服务器时间与用户设备时间存在差异。
 
-1. 登录到服务器
+## 修复方案
 
-```bash
-ssh root@your-server-ip
-```
+我们已经修改了 `validateTOTP` 函数，增加了时间偏移容忍度，允许前后1分钟的验证码有效。这样即使服务器与用户设备存在时区差异，只要在合理范围内（±1分钟），验证码仍然有效。
 
-2. 备份当前的api.go文件
+## 重新部署步骤
 
-```bash
-cp /opt/openp2p/source/core/api.go /opt/openp2p/source/core/api.go.bak
-```
+1. 登录到您的VPS
 
-3. 编辑api.go文件，替换validateTOTP函数
+2. 进入项目目录
+   ```bash
+   cd /opt/openp2p
+   ```
 
-```bash
-nano /opt/openp2p/source/core/api.go
-```
+3. 拉取最新代码
+   ```bash
+   git pull origin main
+   ```
 
-找到`validateTOTP`函数，替换为以下代码：
+4. 重新编译应用
+   ```bash
+   cd /opt/openp2p/source
+   go build -o /opt/openp2p/openp2p ./cmd/openp2p.go
+   ```
 
-```go
-// 验证TOTP码
-func validateTOTP(key string, code string) bool {
-	// 开发模式下使用固定验证码
-	if isDevelopment && code == "123456" {
-		return true
-	}
+5. 重启服务
+   ```bash
+   systemctl restart openp2p
+   ```
 
-	// 生产模式使用标准TOTP验证
-	codeNum, err := strconv.ParseUint(code, 10, 64)
-	if err != nil {
-		log.Printf("TOTP code parse error: %v", err)
-		return false
-	}
+6. 检查服务状态
+   ```bash
+   systemctl status openp2p
+   ```
 
-	// 将 base32 编码的密钥转换为字节数组
-	keyBytes, err := base32.StdEncoding.DecodeString(key)
-	if err != nil {
-		log.Printf("TOTP key decode error: %v", err)
-		return false
-	}
+## 验证修复是否成功
 
-	// 使用 TOTP 验证
-	// 增加时间偏移容忍度，允许前后1分钟的验证码
-	now := time.Now()
-	for _, offset := range []int{-60, -30, 0, 30, 60} {
-		testTime := now.Add(time.Duration(offset) * time.Second)
-		if validateTOTPAtTime(keyBytes, codeNum, testTime) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// 在特定时间点验证TOTP码
-func validateTOTPAtTime(key []byte, code uint64, t time.Time) bool {
-	// 计算TOTP
-	timeCounter := uint64(t.Unix()) / 30
-	h := hmac.New(sha1.New, key)
-	binary.Write(h, binary.BigEndian, timeCounter)
-	sum := h.Sum(nil)
-
-	// RFC 4226/RFC 6238 截断
-	offset := sum[len(sum)-1] & 0x0F
-	truncatedHash := binary.BigEndian.Uint32(sum[offset:offset+4]) & 0x7FFFFFFF
-	hotp := truncatedHash % 1000000
-
-	return hotp == code
-}
-```
-
-4. 确保导入了所有必要的包
-
-在文件顶部的import部分，确保包含以下包：
-
-```go
-import (
-	"crypto/hmac"
-	"crypto/sha1"
-	"encoding/base32"
-	"encoding/binary"
-	"encoding/json"
-	"fmt"
-	"log"
-	"net/http"
-	"strconv"
-	"sync"
-	"time"
-)
-```
-
-5. 重新编译并重启服务
-
-```bash
-cd /opt/openp2p/source
-go build -o /opt/openp2p/openp2p ./cmd/openp2p.go
-systemctl restart openp2p
-```
-
-6. 测试登录
-
-现在尝试使用Google验证器生成的TOTP码登录，应该可以成功了。
+1. 尝试使用Google验证器登录系统
+2. 如果登录成功，说明修复已生效
 
 ## 注意事项
 
-1. 如果服务器时区与您的手机时区不同，建议将服务器时区设置为与您的手机相同的时区：
+- 如果您的服务器时间与标准时间相差超过1分钟，建议同步服务器时间：
+  ```bash
+  apt-get update
+  apt-get install -y ntp
+  systemctl start ntp
+  systemctl enable ntp
+  ```
 
-```bash
-sudo timedatectl set-timezone Asia/Shanghai
+- 如果修复后仍然遇到问题，请检查服务器日志：
+  ```bash
+  journalctl -u openp2p -f
+  ```
+
+## 技术细节
+
+修改的核心代码如下：
+
+```go
+// 使用 TOTP 验证
+// 增加时间偏移容忍度，允许前后1分钟的验证码
+now := time.Now()
+for _, offset := range []int{-60, -30, 0, 30, 60} {
+    testTime := now.Add(time.Duration(offset) * time.Second)
+    if validateTOTPAtTime(keyBytes, codeNum, testTime) {
+        return true
+    }
+}
 ```
 
-2. 如果修改后仍然无法登录，可以临时启用开发模式，使用固定验证码"123456"：
-
-```bash
-systemctl stop openp2p
-/opt/openp2p/openp2p --dev=true
-```
-
-3. 如果您使用的是deploy.sh脚本部署，请确保在脚本中也更新了这部分代码。 
+这段代码会尝试验证当前时间前后1分钟内的验证码，只要有一个验证通过，就认为验证成功。 
