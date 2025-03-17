@@ -1,0 +1,13 @@
+{
+  "server": "localhost",
+  "port": 27183,
+  "name": "测试节点",
+  "token": "your_token_here",
+  "bind": "0.0.0.0",
+  "p2p_port": 0,
+  "log_level": 3,
+  "auto_start": true,
+  "auto_login": true,
+  "language": "zh_CN",
+  "theme": "light"
+} 
