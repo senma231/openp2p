@@ -45,3 +45,6 @@ require (
 )
 
 replace github.com/openp2p-cn/totp => github.com/openp2p-cn/totp v0.0.0-20230421034602-0f3320ffb25e
+
+// 添加gvisor的替换，使用兼容Go 1.20的旧版本
+replace gvisor.dev/gvisor => gvisor.dev/gvisor v0.0.0-20220901235040-6ca97ef2ce1c
