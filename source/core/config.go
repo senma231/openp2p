@@ -16,7 +16,10 @@ var gConf Config
 // AppConfig 应用配置结构
 type AppConfig struct {
 	// required
+	AppID            string
 	AppName          string
+	AppToken         string
+	AppType          string
 	Protocol         string
 	UnderlayProtocol string
 	PunchPriority    int // bitwise DisableTCP|DisableUDP|TCPFirst  0:tcp and udp both enable, udp first

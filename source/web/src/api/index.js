@@ -57,22 +57,24 @@ export const register = (userData) => {
 }
 
 export const getUserInfo = () => {
-    return api.get('/auth/user')
+    return api.get('/user/info')
+}
+
+// 更新用户信息
+export const updateUserInfo = (userData) => {
+    return api.put('/user/info', userData)
 }
 
 // 统计数据API
 export const getStats = () => {
-  return api.get('/stats')
+    return api.get('/stats')
 }
 
 // 节点管理API
 export const getNodes = async () => {
     try {
         const response = await api.get('/nodes')
-        if (response.code === 0) {
-            return response
-        }
-        throw new Error(response.message || '获取节点列表失败')
+        return response
     } catch (error) {
         console.error('获取节点列表失败:', error)
         return { code: 1, message: error.message, data: [] }
@@ -82,10 +84,7 @@ export const getNodes = async () => {
 export const getNodeDetail = async (nodeId) => {
     try {
         const response = await api.get(`/nodes/${nodeId}`)
-        if (response.code === 0) {
-            return response
-        }
-        throw new Error(response.message || '获取节点详情失败')
+        return response
     } catch (error) {
         console.error('获取节点详情失败:', error)
         return { code: 1, message: error.message, data: null }
@@ -93,20 +92,17 @@ export const getNodeDetail = async (nodeId) => {
 }
 
 export const getNodePerformance = (nodeId, timeRange) => {
-  return api.get(`/nodes/${nodeId}/performance`, { params: { timeRange } })
+    return api.get(`/nodes/${nodeId}/performance`, { params: { timeRange } })
 }
 
 export const getNodeConnections = (nodeId, params) => {
-  return api.get(`/nodes/${nodeId}/connections`, { params })
+    return api.get(`/nodes/${nodeId}/connections`, { params })
 }
 
 export const addNode = async (nodeData) => {
     try {
         const response = await api.post('/nodes', nodeData)
-        if (response.code === 0) {
-            return response
-        }
-        throw new Error(response.message || '添加节点失败')
+        return response
     } catch (error) {
         console.error('添加节点失败:', error)
         return { code: 1, message: error.message }
@@ -116,10 +112,7 @@ export const addNode = async (nodeData) => {
 export const updateNode = async (nodeId, nodeData) => {
     try {
         const response = await api.put(`/nodes/${nodeId}`, nodeData)
-        if (response.code === 0) {
-            return response
-        }
-        throw new Error(response.message || '更新节点失败')
+        return response
     } catch (error) {
         console.error('更新节点失败:', error)
         return { code: 1, message: error.message }
@@ -129,98 +122,92 @@ export const updateNode = async (nodeId, nodeData) => {
 export const deleteNode = async (nodeId) => {
     try {
         const response = await api.delete(`/nodes/${nodeId}`)
-        if (response.code === 0) {
-            return response
-        }
-        throw new Error(response.message || '删除节点失败')
+        return response
     } catch (error) {
         console.error('删除节点失败:', error)
-        if (error.response && error.response.status === 404) {
-            return { code: 0, message: '节点已删除', data: null }
-        }
         return { code: 1, message: error.message }
     }
 }
 
 // 端口映射API
 export const getMappings = () => {
-  return api.get('/mappings')
+    return api.get('/mappings')
 }
 
 export const addMapping = (mappingData) => {
-  return api.post('/mappings', mappingData)
+    return api.post('/mappings', mappingData)
 }
 
 export const updateMapping = (mappingId, mappingData) => {
-  return api.put(`/mappings/${mappingId}`, mappingData)
+    return api.put(`/mappings/${mappingId}`, mappingData)
 }
 
 export const deleteMapping = (mappingId) => {
-  return api.delete(`/mappings/${mappingId}`)
+    return api.delete(`/mappings/${mappingId}`)
 }
 
 // 高级映射（级联映射）API
 export const getAdvancedMappings = () => {
-  return api.get('/advanced-mappings')
+    return api.get('/advanced-mappings')
 }
 
 export const getAdvancedMappingDetail = (mappingId) => {
-  return api.get(`/advanced-mappings/${mappingId}`)
+    return api.get(`/advanced-mappings/${mappingId}`)
 }
 
 export const addAdvancedMapping = (mappingData) => {
-  return api.post('/advanced-mappings', mappingData)
+    return api.post('/advanced-mappings', mappingData)
 }
 
 export const updateAdvancedMapping = (mappingId, mappingData) => {
-  return api.put(`/advanced-mappings/${mappingId}`, mappingData)
+    return api.put(`/advanced-mappings/${mappingId}`, mappingData)
 }
 
 export const deleteAdvancedMapping = (mappingId) => {
-  return api.delete(`/advanced-mappings/${mappingId}`)
+    return api.delete(`/advanced-mappings/${mappingId}`)
 }
 
 export const startAdvancedMapping = (mappingId) => {
-  return api.post(`/advanced-mappings/${mappingId}/start`)
+    return api.post(`/advanced-mappings/${mappingId}/start`)
 }
 
 export const stopAdvancedMapping = (mappingId) => {
-  return api.post(`/advanced-mappings/${mappingId}/stop`)
+    return api.post(`/advanced-mappings/${mappingId}/stop`)
 }
 
 export const getAdvancedMappingTraffic = (mappingId, timeRange) => {
-  return api.get(`/advanced-mappings/${mappingId}/traffic`, { params: { timeRange } })
+    return api.get(`/advanced-mappings/${mappingId}/traffic`, { params: { timeRange } })
 }
 
 export const getAdvancedMappingHistory = (mappingId, params = {}) => {
-  return api.get(`/advanced-mappings/${mappingId}/history`, { params })
+    return api.get(`/advanced-mappings/${mappingId}/history`, { params })
 }
 
 export const exportAdvancedMappingHistory = (mappingId) => {
-  return api.get(`/advanced-mappings/${mappingId}/history/export`, {
-    responseType: 'blob'
-  })
+    return api.get(`/advanced-mappings/${mappingId}/history/export`, {
+        responseType: 'blob'
+    })
 }
 
 export const testAdvancedMappingConnection = (mappingId) => {
-  return api.post(`/advanced-mappings/${mappingId}/test`)
+    return api.post(`/advanced-mappings/${mappingId}/test`)
 }
 
 // 日志查询API
 export const getLogs = (params) => {
-  return api.get('/logs', { params })
+    return api.get('/logs', { params })
 }
 
 export const exportLogs = (params) => {
-  return api.get('/logs/export', { 
-    params,
-    responseType: 'blob'
-  })
+    return api.get('/logs/export', { 
+        params,
+        responseType: 'blob'
+    })
 }
 
 // 认证相关API
 export const resetTOTP = (data) => {
-  return api.post('/auth/reset-totp', data)
+    return api.post('/auth/reset-totp', data)
 }
 
 // 检查管理员是否存在
@@ -235,5 +222,5 @@ export const checkAdminExists = async () => {
 }
 
 export const deleteAdmin = (data) => {
-  return api.post('/auth/delete-admin', data)
+    return api.post('/auth/delete-admin', data)
 }

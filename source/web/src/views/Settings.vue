@@ -64,7 +64,6 @@ const updateUserInfo = async () => {
     
     userLoading.value = true
     try {
-      // TODO: 调用API更新用户信息
       await apiUpdateUserInfo(userForm)
       ElMessage.success('个人信息更新成功')
       

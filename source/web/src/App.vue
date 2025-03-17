@@ -104,7 +104,7 @@ const activeMenu = computed(() => route.path)
 
 // 获取用户名
 const username = computed(() => {
-  return authStore.user?.username || '管理员'
+  return authStore.user?.displayName || authStore.user?.username || '管理员'
 })
 
 // 处理下拉菜单命令

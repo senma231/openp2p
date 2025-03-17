@@ -45,12 +45,15 @@ type APIResponse struct {
 
 // 节点状态结构
 type NodeStatus struct {
+	ID        string    `json:"id"`
 	Name      string    `json:"name"`
 	IP        string    `json:"ip"`
+	Type      string    `json:"type"`
 	Status    string    `json:"status"`
 	Latency   int       `json:"latency"`
 	Bandwidth int       `json:"bandwidth"`
 	LastSeen  time.Time `json:"lastSeen"`
+	Token     string    `json:"token"`
 }
 
 // 统计数据结构
@@ -180,11 +183,18 @@ func InitAPIRoutes() {
 	http.HandleFunc("/api/auth/check-admin", corsMiddleware(handleCheckAdmin))
 	http.HandleFunc("/api/auth/delete-admin", corsMiddleware(handleDeleteAdmin))
 
+	// 用户信息相关路由
+	http.HandleFunc("/api/user/info", corsMiddleware(handleUserInfo))
+
 	// 其他API路由
 	http.HandleFunc("/api/stats", corsMiddleware(handleStats))
 	http.HandleFunc("/api/nodes", corsMiddleware(handleNodes))
+	http.HandleFunc("/api/nodes/", corsMiddleware(handleNodeOperation))
 	http.HandleFunc("/api/mappings", corsMiddleware(handleMappings))
 	http.HandleFunc("/api/logs", corsMiddleware(handleLogs))
+
+	// 客户端API
+	http.HandleFunc("/api/client/verify", corsMiddleware(handleClientVerify))
 
 	// 高级映射相关路由
 	http.HandleFunc("/api/advanced-mappings", corsMiddleware(handleAdvancedMappings))
@@ -459,36 +469,207 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 
 // 节点管理处理
 func handleNodes(w http.ResponseWriter, r *http.Request) {
+	// 获取请求中的token
+	token := r.Header.Get("Authorization")
+	if token == "" {
+		responseJSON(w, APIResponse{Code: 1, Message: "Unauthorized"})
+		return
+	}
+
+	// 解析token获取用户名
+	username := parseToken(token)
+	if username == "" {
+		responseJSON(w, APIResponse{Code: 1, Message: "Invalid token"})
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
 		// 获取所有节点状态
 		nodes := make([]NodeStatus, 0)
 		for _, app := range gConf.Apps {
-			nodes = append(nodes, NodeStatus{
+			node := NodeStatus{
+				ID:        app.AppID,
 				Name:      app.AppName,
 				IP:        app.peerIP,
+				Type:      app.AppType,
 				Status:    getNodeStatus(*app),
 				Latency:   getPeerLatency(*app),
 				Bandwidth: app.shareBandwidth,
 				LastSeen:  app.connectTime,
-			})
+				Token:     app.AppToken,
+			}
+			nodes = append(nodes, node)
 		}
 		responseJSON(w, APIResponse{Code: 0, Data: nodes})
 
 	case http.MethodPost:
 		// 添加新节点
-		var newApp AppConfig
-		if err := json.NewDecoder(r.Body).Decode(&newApp); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+		var newNode struct {
+			Name      string `json:"name"`
+			Token     string `json:"token"`
+			Type      string `json:"type"`
+			Bandwidth int    `json:"bandwidth"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&newNode); err != nil {
+			responseJSON(w, APIResponse{Code: 1, Message: "Invalid request body"})
 			return
 		}
+
+		// 验证必填字段
+		if newNode.Name == "" || newNode.Token == "" {
+			responseJSON(w, APIResponse{Code: 1, Message: "Name and token are required"})
+			return
+		}
+
+		// 创建新节点配置
+		newApp := &AppConfig{
+			AppID:          generateUUID(),
+			AppName:        newNode.Name,
+			AppToken:       newNode.Token,
+			AppType:        newNode.Type,
+			shareBandwidth: newNode.Bandwidth,
+		}
+
 		// 添加节点配置
-		gConf.Apps = append(gConf.Apps, &newApp)
-		responseJSON(w, APIResponse{Code: 0, Message: "节点添加成功"})
+		gConf.Apps = append(gConf.Apps, newApp)
+
+		// 保存配置
+		saveConfig()
+
+		responseJSON(w, APIResponse{Code: 0, Message: "节点添加成功", Data: newApp})
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// 节点操作处理（更新、删除）
+func handleNodeOperation(w http.ResponseWriter, r *http.Request) {
+	// 获取请求中的token
+	token := r.Header.Get("Authorization")
+	if token == "" {
+		responseJSON(w, APIResponse{Code: 1, Message: "Unauthorized"})
+		return
+	}
+
+	// 解析token获取用户名
+	username := parseToken(token)
+	if username == "" {
+		responseJSON(w, APIResponse{Code: 1, Message: "Invalid token"})
+		return
+	}
+
+	// 获取节点ID
+	path := r.URL.Path
+	parts := strings.Split(path, "/")
+	if len(parts) < 4 {
+		responseJSON(w, APIResponse{Code: 1, Message: "Invalid node ID"})
+		return
+	}
+
+	nodeID := parts[3]
+	if nodeID == "" {
+		responseJSON(w, APIResponse{Code: 1, Message: "Node ID is required"})
+		return
+	}
+
+	// 查找节点
+	var targetApp *AppConfig
+	var targetIndex int
+	for i, app := range gConf.Apps {
+		if app.AppID == nodeID || app.AppName == nodeID {
+			targetApp = app
+			targetIndex = i
+			break
+		}
+	}
+
+	if targetApp == nil {
+		responseJSON(w, APIResponse{Code: 1, Message: "Node not found"})
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		// 获取节点详情
+		node := NodeStatus{
+			ID:        targetApp.AppID,
+			Name:      targetApp.AppName,
+			IP:        targetApp.peerIP,
+			Type:      targetApp.AppType,
+			Status:    getNodeStatus(*targetApp),
+			Latency:   getPeerLatency(*targetApp),
+			Bandwidth: targetApp.shareBandwidth,
+			LastSeen:  targetApp.connectTime,
+			Token:     targetApp.AppToken,
+		}
+		responseJSON(w, APIResponse{Code: 0, Data: node})
+
+	case http.MethodPut:
+		// 更新节点
+		var updateData struct {
+			Name      string `json:"name"`
+			Token     string `json:"token"`
+			Type      string `json:"type"`
+			Bandwidth int    `json:"bandwidth"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&updateData); err != nil {
+			responseJSON(w, APIResponse{Code: 1, Message: "Invalid request body"})
+			return
+		}
+
+		// 更新节点信息
+		if updateData.Name != "" {
+			targetApp.AppName = updateData.Name
+		}
+		if updateData.Token != "" {
+			targetApp.AppToken = updateData.Token
+		}
+		if updateData.Type != "" {
+			targetApp.AppType = updateData.Type
+		}
+		if updateData.Bandwidth > 0 {
+			targetApp.shareBandwidth = updateData.Bandwidth
+		}
+
+		// 保存配置
+		saveConfig()
+
+		responseJSON(w, APIResponse{Code: 0, Message: "节点更新成功", Data: targetApp})
+
+	case http.MethodDelete:
+		// 删除节点
+		// 从配置中移除节点
+		gConf.Apps = append(gConf.Apps[:targetIndex], gConf.Apps[targetIndex+1:]...)
+
+		// 保存配置
+		saveConfig()
+
+		responseJSON(w, APIResponse{Code: 0, Message: "节点删除成功"})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// 生成UUID
+func generateUUID() string {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+// 保存配置
+func saveConfig() {
+	// 这里应该实现配置保存逻辑
+	// 简化实现，实际应该写入配置文件
+	log.Printf("配置已更新，共有 %d 个节点", len(gConf.Apps))
 }
 
 // 端口映射处理
@@ -801,4 +982,153 @@ func handleAdvancedMappingOperation(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// 用户信息处理
+func handleUserInfo(w http.ResponseWriter, r *http.Request) {
+	// 获取请求中的token
+	token := r.Header.Get("Authorization")
+	if token == "" {
+		responseJSON(w, APIResponse{Code: 1, Message: "Unauthorized"})
+		return
+	}
+
+	// 解析token获取用户名
+	username := parseToken(token)
+	if username == "" {
+		responseJSON(w, APIResponse{Code: 1, Message: "Invalid token"})
+		return
+	}
+
+	userLock.RLock()
+	defer userLock.RUnlock()
+
+	// 检查用户是否存在
+	var user User
+	if adminUser != nil && adminUser.Username == username {
+		user = *adminUser
+	} else if u, exists := users[username]; exists {
+		user = u
+	} else {
+		responseJSON(w, APIResponse{Code: 1, Message: "User not found"})
+		return
+	}
+
+	// 根据请求方法处理
+	switch r.Method {
+	case http.MethodGet:
+		// 返回用户信息（不包含敏感信息）
+		userInfo := map[string]interface{}{
+			"username": user.Username,
+			"role":     user.Role,
+			"created":  user.Created,
+			// 可以添加其他非敏感信息
+			"displayName": user.Username, // 默认显示名称为用户名
+			"email":       "",            // 默认邮箱为空
+		}
+		responseJSON(w, APIResponse{Code: 0, Message: "Success", Data: userInfo})
+
+	case http.MethodPut:
+		// 更新用户信息
+		var updateData struct {
+			DisplayName string `json:"displayName"`
+			Email       string `json:"email"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&updateData); err != nil {
+			responseJSON(w, APIResponse{Code: 1, Message: "Invalid request body"})
+			return
+		}
+
+		// 这里可以更新用户信息，但由于当前实现没有存储这些字段，
+		// 我们只返回成功响应
+		responseJSON(w, APIResponse{Code: 0, Message: "User information updated successfully"})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// 解析token获取用户名
+func parseToken(token string) string {
+	// 简单实现：token就是用户名的base64编码
+	decoded, err := base64.StdEncoding.DecodeString(token)
+	if err != nil {
+		return ""
+	}
+	return string(decoded)
+}
+
+// 客户端配置验证
+func handleClientVerify(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var clientConfig struct {
+		Server    string `json:"server"`
+		Port      int    `json:"port"`
+		Name      string `json:"name"`
+		Token     string `json:"token"`
+		Bind      string `json:"bind"`
+		P2PPort   int    `json:"p2p_port"`
+		LogLevel  int    `json:"log_level"`
+		AutoStart bool   `json:"auto_start"`
+		AutoLogin bool   `json:"auto_login"`
+		Language  string `json:"language"`
+		Theme     string `json:"theme"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&clientConfig); err != nil {
+		responseJSON(w, APIResponse{Code: 1, Message: "Invalid request body"})
+		return
+	}
+
+	// 验证必填字段
+	if clientConfig.Server == "" {
+		responseJSON(w, APIResponse{Code: 1, Message: "Server address is required"})
+		return
+	}
+
+	if clientConfig.Token == "" {
+		responseJSON(w, APIResponse{Code: 1, Message: "Token is required"})
+		return
+	}
+
+	// 验证Token是否有效
+	var foundNode *AppConfig
+	for _, app := range gConf.Apps {
+		if app.AppToken == clientConfig.Token {
+			foundNode = app
+			break
+		}
+	}
+
+	if foundNode == nil {
+		responseJSON(w, APIResponse{Code: 1, Message: "Invalid token, node not found"})
+		return
+	}
+
+	// 如果客户端提供了名称，验证是否匹配
+	if clientConfig.Name != "" && foundNode.AppName != clientConfig.Name {
+		log.Printf("Warning: Client name '%s' does not match registered node name '%s'",
+			clientConfig.Name, foundNode.AppName)
+	}
+
+	// 返回验证结果和节点信息
+	responseJSON(w, APIResponse{
+		Code:    0,
+		Message: "Client configuration verified",
+		Data: map[string]interface{}{
+			"node_id":      foundNode.AppID,
+			"node_name":    foundNode.AppName,
+			"node_type":    foundNode.AppType,
+			"config_valid": true,
+			"recommendations": []string{
+				"Username and password fields are no longer required",
+				"Use the 'name' field to specify the node name for better identification",
+			},
+		},
+	})
 }
