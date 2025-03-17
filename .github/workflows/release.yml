@@ -65,8 +65,10 @@ jobs:
           
           ## 更新内容
           
-          - 修复了 TOTP 验证问题，增加了时间偏移容忍度
-          - 优化了项目结构，删除了废弃的文件和脚本
+          - 修复了用户信息页面问题，支持显示和修改用户信息
+          - 修复了节点管理功能，支持添加、编辑和删除节点
+          - 优化了客户端配置，移除了不必要的字段
+          - 添加了详细的客户端配置文档
           - 其他 bug 修复和性能优化
           
           ## 下载
@@ -82,6 +84,13 @@ jobs:
           ## 配置说明
           
           默认配置文件为 \`config.json\`，您可以根据需要修改。
+          主要配置项说明：
+          
+          - server: 服务器地址（必填）
+          - port: 服务器端口，默认27183
+          - name: 节点名称，建议填写，方便识别
+          - token: 节点令牌，必填，用于身份验证
+          - log_level: 日志级别（0=关闭，1=错误，2=信息，3=调试）
           EOF
 
       - name: Create GitHub Release
@@ -92,5 +101,4 @@ jobs:
             release/openp2p-linux-amd64-${{ env.VERSION }}.zip
             release/openp2p-macos-amd64-${{ env.VERSION }}.zip
           body_path: release/release_notes_${{ env.VERSION }}.md
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          token: ${{ secrets.GITHUB_TOKEN }} 

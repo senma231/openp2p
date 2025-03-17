@@ -1,8 +1,7 @@
 {
   "server": "",
   "port": 27183,
-  "username": "",
-  "password": "",
+  "name": "",
   "token": "",
   "bind": "0.0.0.0",
   "p2p_port": 0,
