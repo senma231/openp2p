@@ -89,21 +89,18 @@ func NewClient(configPath string) (*Client, error) {
 
 	// 创建日志目录
 	logDir := getLogDir()
-	fmt.Printf("日志目录: %s\n", logDir)
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return nil, fmt.Errorf("创建日志目录失败: %v", err)
+	}
 
 	// 创建日志文件
-	logFileName := filepath.Join(logDir, fmt.Sprintf("client_%s.log", time.Now().Format("20060102")))
-	fmt.Printf("日志文件: %s\n", logFileName)
-
 	logFile, err := os.OpenFile(
-		logFileName,
+		filepath.Join(logDir, fmt.Sprintf("client_%s.log", time.Now().Format("20060102"))),
 		os.O_CREATE|os.O_APPEND|os.O_WRONLY,
 		0644,
 	)
 	if err != nil {
-		// 如果创建日志文件失败，使用标准输出
-		fmt.Printf("创建日志文件失败: %v，将使用标准输出\n", err)
-		logFile = os.Stdout
+		return nil, fmt.Errorf("创建日志文件失败: %v", err)
 	}
 
 	// 创建客户端
@@ -118,12 +115,6 @@ func NewClient(configPath string) (*Client, error) {
 		stopChan: make(chan struct{}),
 		logger:   log.New(logFile, "", log.LstdFlags),
 	}
-
-	// 记录初始日志
-	client.logf(1, "客户端初始化完成，配置文件: %s", configPath)
-	client.logf(1, "服务器地址: %s:%d", config.Server, config.Port)
-	client.logf(1, "节点名称: %s", config.Name)
-	client.logf(1, "日志级别: %d", config.LogLevel)
 
 	return client, nil
 }
