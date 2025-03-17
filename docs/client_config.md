@@ -41,8 +41,8 @@ OpenP2P客户端使用JSON格式的配置文件，以下是各字段的详细说
 
 1. 将`log_level`设置为`3`（调试级别）
 2. 查看客户端日志文件，通常位于：
-   - Windows: `%APPDATA%\OpenP2P\logs\`
-   - Linux: `~/.openp2p/logs/`
+   - Windows: `%LOCALAPPDATA%\OpenP2P\logs\`
+   - Linux: `~/.local/share/openp2p/logs/`
    - macOS: `~/Library/Application Support/OpenP2P/logs/`
 
 ## 功能说明

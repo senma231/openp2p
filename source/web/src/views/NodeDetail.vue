@@ -45,7 +45,7 @@
             </div>
             <div class="info-item">
               <span class="label">最后在线时间:</span>
-              <span class="value">{{ formatDate(nodeInfo.lastSeen) }}</span>
+              <span class="value">{{ formatTimeDiff(nodeInfo.lastSeen) }}</span>
             </div>
           </div>
           <el-empty v-else description="暂无节点信息"></el-empty>
@@ -66,19 +66,22 @@
             </div>
           </template>
           <div v-if="nodeInfo && nodeInfo.status === 'online'" class="performance-data">
-            <div class="performance-item">
-              <span class="label">CPU使用率:</span>
-              <el-progress :percentage="nodeInfo.cpuUsage || 0" :color="getCpuColor"></el-progress>
+            <div class="info-item">
+              <span class="label">连接状态:</span>
+              <span class="value">已连接</span>
             </div>
-            <div class="performance-item">
-              <span class="label">内存使用率:</span>
-              <el-progress :percentage="nodeInfo.memoryUsage || 0" :color="getMemoryColor"></el-progress>
+            <div class="info-item">
+              <span class="label">连接时间:</span>
+              <span class="value">{{ formatTimeDiff(nodeInfo.lastSeen) }}</span>
             </div>
-            <div class="performance-item">
-              <span class="label">磁盘使用率:</span>
-              <el-progress :percentage="nodeInfo.diskUsage || 0" :color="getDiskColor"></el-progress>
+            <div class="info-item">
+              <span class="label">延迟:</span>
+              <span class="value">{{ nodeInfo.latency }}ms</span>
             </div>
-            <div ref="networkChartRef" class="chart-container"></div>
+            <div class="info-item">
+              <span class="label">带宽使用:</span>
+              <span class="value">{{ nodeInfo.bandwidth ? nodeInfo.bandwidth + 'Mbps' : '未知' }}</span>
+            </div>
           </div>
           <el-empty v-else description="节点离线，无法获取性能数据"></el-empty>
         </el-card>
@@ -86,7 +89,7 @@
     </el-row>
 
     <!-- 连接列表 -->
-    <el-card class="detail-card">
+    <el-card class="detail-card" v-if="false">
       <template #header>
         <div class="card-header">
           <span>活跃连接</span>
@@ -212,9 +215,6 @@ const fetchNodeInfo = async () => {
         status: data.status || 'offline',
         latency: data.latency || 0,
         bandwidth: data.bandwidth || 0,
-        cpuUsage: data.cpuUsage || 0,
-        memoryUsage: data.memoryUsage || 0,
-        diskUsage: data.diskUsage || 0,
         lastSeen: data.lastSeen || new Date().toISOString()
       }
       
@@ -224,12 +224,6 @@ const fetchNodeInfo = async () => {
         type: nodeInfo.value.type || 'client',
         bandwidth: nodeInfo.value.bandwidth || 0,
         token: nodeInfo.value.token || ''
-      }
-      
-      // 初始化图表
-      if (nodeInfo.value.status === 'online') {
-        initNetworkChart()
-        fetchPerformanceData()
       }
     } else {
       ElMessage.warning('未找到节点信息')
@@ -245,14 +239,8 @@ const fetchNodeInfo = async () => {
 
 // 获取节点性能数据
 const fetchPerformanceData = async () => {
-  if (!nodeInfo.value || nodeInfo.value.status !== 'online') return
-  
-  try {
-    const data = await nodesStore.getNodePerformance(nodeName.value, timeRange.value)
-    updateNetworkChart(data)
-  } catch (error) {
-    console.error('获取性能数据失败:', error)
-  }
+  // 简化实现，仅刷新节点信息
+  fetchNodeInfo()
 }
 
 // 获取节点连接列表
@@ -274,7 +262,7 @@ const fetchConnections = async () => {
 
 // 刷新连接列表
 const refreshConnections = () => {
-  fetchConnections()
+  fetchNodeInfo()
 }
 
 // 处理分页变化
@@ -406,37 +394,24 @@ const saveNode = async () => {
   }
 }
 
-// 格式化日期
-const formatDate = (timestamp) => {
+// 格式化时间差
+const formatTimeDiff = (timestamp) => {
   if (!timestamp) return '未知'
-  return new Date(timestamp).toLocaleString()
-}
-
-// 格式化持续时间
-const formatDuration = (seconds) => {
-  if (!seconds) return '0秒'
   
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const remainingSeconds = seconds % 60
+  const now = new Date()
+  const date = new Date(timestamp)
+  const diffSeconds = Math.floor((now - date) / 1000)
+  
+  if (diffSeconds < 60) return `${diffSeconds}秒前`
+  
+  const minutes = Math.floor(diffSeconds / 60)
+  const remainingSeconds = diffSeconds % 60
   
   let result = ''
-  if (hours > 0) result += `${hours}小时`
   if (minutes > 0) result += `${minutes}分钟`
   if (remainingSeconds > 0 || result === '') result += `${remainingSeconds}秒`
   
   return result
-}
-
-// 格式化流量
-const formatTraffic = (bytes) => {
-  if (bytes === 0 || !bytes) return '0 B'
-  
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
 // 获取节点类型文本
@@ -449,50 +424,20 @@ const getNodeTypeText = (type) => {
   return types[type] || '未知'
 }
 
-// 获取CPU颜色
-const getCpuColor = (percentage) => {
-  if (percentage < 60) return '#67C23A'
-  if (percentage < 80) return '#E6A23C'
-  return '#F56C6C'
-}
-
-// 获取内存颜色
-const getMemoryColor = (percentage) => {
-  if (percentage < 70) return '#67C23A'
-  if (percentage < 90) return '#E6A23C'
-  return '#F56C6C'
-}
-
-// 获取磁盘颜色
-const getDiskColor = (percentage) => {
-  if (percentage < 80) return '#67C23A'
-  if (percentage < 95) return '#E6A23C'
-  return '#F56C6C'
-}
-
 // 组件挂载时获取数据
 onMounted(() => {
   fetchNodeInfo()
-  fetchConnections()
   
   // 定时刷新数据
   refreshTimer = setInterval(() => {
-    if (nodeInfo.value && nodeInfo.value.status === 'online') {
-      fetchNodeInfo()
-      fetchPerformanceData()
-    }
+    fetchNodeInfo()
   }, 30000) // 每30秒刷新一次
 })
 
-// 组件卸载时清除定时器和图表
+// 组件卸载时清除定时器
 onUnmounted(() => {
   if (refreshTimer) {
     clearInterval(refreshTimer)
-  }
-  
-  if (networkChart) {
-    networkChart.dispose()
-    networkChart = null
   }
 })
 </script>
@@ -538,20 +483,19 @@ onUnmounted(() => {
     }
     
     .performance-data {
-      .performance-item {
-        margin-bottom: 20px;
+      .info-item {
+        margin-bottom: 12px;
+        display: flex;
         
         .label {
-          display: block;
-          margin-bottom: 8px;
+          width: 120px;
           color: #606266;
         }
+        
+        .value {
+          font-weight: 500;
+        }
       }
-    }
-    
-    .chart-container {
-      height: 300px;
-      margin-top: 20px;
     }
   }
   
@@ -566,4 +510,4 @@ onUnmounted(() => {
     color: #909399;
   }
 }
-</style> 
+</style>

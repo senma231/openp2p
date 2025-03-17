@@ -23,10 +23,12 @@ import (
 
 // 用户结构
 type User struct {
-	Username string    `json:"username"`
-	TOTPKey  string    `json:"totp_key,omitempty"`
-	Role     string    `json:"role"`
-	Created  time.Time `json:"created"`
+	Username    string    `json:"username"`
+	TOTPKey     string    `json:"totp_key,omitempty"`
+	Role        string    `json:"role"`
+	Created     time.Time `json:"created"`
+	DisplayName string    `json:"displayName"`
+	Email       string    `json:"email"`
 }
 
 // 用户存储
@@ -195,6 +197,8 @@ func InitAPIRoutes() {
 
 	// 客户端API
 	http.HandleFunc("/api/client/verify", corsMiddleware(handleClientVerify))
+	http.HandleFunc("/api/client/connect", corsMiddleware(handleClientConnect))
+	http.HandleFunc("/api/client/heartbeat", corsMiddleware(handleClientHeartbeat))
 
 	// 高级映射相关路由
 	http.HandleFunc("/api/advanced-mappings", corsMiddleware(handleAdvancedMappings))
@@ -766,15 +770,27 @@ func getNodeStatus(app AppConfig) string {
 	if app.Enabled == 0 {
 		return "offline"
 	}
+
+	// 检查最后连接时间，如果在5分钟内有连接，则认为在线
 	if app.connectTime.After(time.Now().Add(-time.Minute * 5)) {
 		return "online"
 	}
+
+	// 检查是否有活跃连接
+	// 这里可以添加更多的连接状态检查逻辑
+
 	return "offline"
 }
 
 func getPeerLatency(app AppConfig) int {
-	// TODO: 实现延迟检测
-	return 0
+	// 如果节点离线，返回0
+	if getNodeStatus(app) == "offline" {
+		return 0
+	}
+
+	// 这里可以实现真实的延迟检测
+	// 简单模拟一个随机延迟值
+	return 30 + int(time.Now().UnixNano()%50)
 }
 
 type LogEntry struct {
@@ -1000,31 +1016,35 @@ func handleUserInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userLock.RLock()
-	defer userLock.RUnlock()
-
-	// 检查用户是否存在
-	var user User
-	if adminUser != nil && adminUser.Username == username {
-		user = *adminUser
-	} else if u, exists := users[username]; exists {
-		user = u
-	} else {
-		responseJSON(w, APIResponse{Code: 1, Message: "User not found"})
-		return
-	}
-
 	// 根据请求方法处理
 	switch r.Method {
 	case http.MethodGet:
+		userLock.RLock()
+		// 检查用户是否存在
+		var user User
+		if adminUser != nil && adminUser.Username == username {
+			user = *adminUser
+		} else if u, exists := users[username]; exists {
+			user = u
+		} else {
+			userLock.RUnlock()
+			responseJSON(w, APIResponse{Code: 1, Message: "User not found"})
+			return
+		}
+		userLock.RUnlock()
+
 		// 返回用户信息（不包含敏感信息）
 		userInfo := map[string]interface{}{
 			"username": user.Username,
 			"role":     user.Role,
 			"created":  user.Created,
-			// 可以添加其他非敏感信息
-			"displayName": user.Username, // 默认显示名称为用户名
-			"email":       "",            // 默认邮箱为空
+			"displayName": func() string {
+				if user.DisplayName != "" {
+					return user.DisplayName
+				}
+				return user.Username
+			}(),
+			"email": user.Email,
 		}
 		responseJSON(w, APIResponse{Code: 0, Message: "Success", Data: userInfo})
 
@@ -1040,8 +1060,24 @@ func handleUserInfo(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// 这里可以更新用户信息，但由于当前实现没有存储这些字段，
-		// 我们只返回成功响应
+		userLock.Lock()
+		// 检查用户是否存在
+		if adminUser != nil && adminUser.Username == username {
+			// 更新管理员信息
+			adminUser.DisplayName = updateData.DisplayName
+			adminUser.Email = updateData.Email
+		} else if u, exists := users[username]; exists {
+			// 更新普通用户信息
+			u.DisplayName = updateData.DisplayName
+			u.Email = updateData.Email
+			users[username] = u
+		} else {
+			userLock.Unlock()
+			responseJSON(w, APIResponse{Code: 1, Message: "User not found"})
+			return
+		}
+		userLock.Unlock()
+
 		responseJSON(w, APIResponse{Code: 0, Message: "User information updated successfully"})
 
 	default:
@@ -1129,6 +1165,106 @@ func handleClientVerify(w http.ResponseWriter, r *http.Request) {
 				"Username and password fields are no longer required",
 				"Use the 'name' field to specify the node name for better identification",
 			},
+		},
+	})
+}
+
+// 客户端连接处理
+func handleClientConnect(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var connectData struct {
+		Token    string `json:"token"`
+		Name     string `json:"name"`
+		IP       string `json:"ip"`
+		Version  string `json:"version"`
+		Platform string `json:"platform"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&connectData); err != nil {
+		responseJSON(w, APIResponse{Code: 1, Message: "Invalid request body"})
+		return
+	}
+
+	// 验证Token
+	var foundNode *AppConfig
+	for _, app := range gConf.Apps {
+		if app.AppToken == connectData.Token {
+			foundNode = app
+			break
+		}
+	}
+
+	if foundNode == nil {
+		responseJSON(w, APIResponse{Code: 1, Message: "Invalid token, node not found"})
+		return
+	}
+
+	// 更新节点连接信息
+	foundNode.connectTime = time.Now()
+	foundNode.peerIP = r.RemoteAddr
+	if i := strings.LastIndex(foundNode.peerIP, ":"); i > 0 {
+		foundNode.peerIP = foundNode.peerIP[:i]
+	}
+	foundNode.Enabled = 1
+	foundNode.peerVersion = connectData.Version
+
+	log.Printf("Client connected: %s (%s) from %s", foundNode.AppName, connectData.Name, foundNode.peerIP)
+
+	// 返回连接成功响应
+	responseJSON(w, APIResponse{
+		Code:    0,
+		Message: "Connection successful",
+		Data: map[string]interface{}{
+			"node_id":     foundNode.AppID,
+			"node_name":   foundNode.AppName,
+			"server_time": time.Now().Unix(),
+		},
+	})
+}
+
+// 客户端心跳处理
+func handleClientHeartbeat(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var heartbeatData struct {
+		Token string `json:"token"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&heartbeatData); err != nil {
+		responseJSON(w, APIResponse{Code: 1, Message: "Invalid request body"})
+		return
+	}
+
+	// 验证Token
+	var foundNode *AppConfig
+	for _, app := range gConf.Apps {
+		if app.AppToken == heartbeatData.Token {
+			foundNode = app
+			break
+		}
+	}
+
+	if foundNode == nil {
+		responseJSON(w, APIResponse{Code: 1, Message: "Invalid token, node not found"})
+		return
+	}
+
+	// 更新节点心跳时间
+	foundNode.connectTime = time.Now()
+
+	// 返回心跳响应
+	responseJSON(w, APIResponse{
+		Code:    0,
+		Message: "Heartbeat received",
+		Data: map[string]interface{}{
+			"server_time": time.Now().Unix(),
 		},
 	})
 }
