@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -152,8 +153,14 @@ func (c *Client) Stop() {
 func (c *Client) verifyConfig() error {
 	c.logf(2, "验证配置...")
 
+	// 处理服务器地址格式
+	serverAddr := c.Config.Server
+	// 移除可能的协议前缀
+	serverAddr = strings.TrimPrefix(serverAddr, "http://")
+	serverAddr = strings.TrimPrefix(serverAddr, "https://")
+
 	// 构建请求URL
-	url := fmt.Sprintf("http://%s:%d/api/client/verify", c.Config.Server, c.Config.Port)
+	url := fmt.Sprintf("http://%s:%d/api/client/verify", serverAddr, c.Config.Port)
 
 	// 构建请求体
 	reqBody, err := json.Marshal(c.Config)
@@ -206,8 +213,14 @@ func (c *Client) verifyConfig() error {
 func (c *Client) connect() error {
 	c.logf(2, "连接服务器...")
 
+	// 处理服务器地址格式
+	serverAddr := c.Config.Server
+	// 移除可能的协议前缀
+	serverAddr = strings.TrimPrefix(serverAddr, "http://")
+	serverAddr = strings.TrimPrefix(serverAddr, "https://")
+
 	// 构建请求URL
-	url := fmt.Sprintf("http://%s:%d/api/client/connect", c.Config.Server, c.Config.Port)
+	url := fmt.Sprintf("http://%s:%d/api/client/connect", serverAddr, c.Config.Port)
 
 	// 构建请求体
 	reqBody, err := json.Marshal(map[string]interface{}{
@@ -266,8 +279,14 @@ func (c *Client) sendHeartbeat() error {
 		return fmt.Errorf("未连接到服务器")
 	}
 
+	// 处理服务器地址格式
+	serverAddr := c.Config.Server
+	// 移除可能的协议前缀
+	serverAddr = strings.TrimPrefix(serverAddr, "http://")
+	serverAddr = strings.TrimPrefix(serverAddr, "https://")
+
 	// 构建请求URL
-	url := fmt.Sprintf("http://%s:%d/api/client/heartbeat", c.Config.Server, c.Config.Port)
+	url := fmt.Sprintf("http://%s:%d/api/client/heartbeat", serverAddr, c.Config.Port)
 
 	// 构建请求体
 	reqBody, err := json.Marshal(map[string]string{
@@ -362,6 +381,14 @@ func getLogDir() string {
 		// Linux: ~/.local/share/openp2p/logs
 		homeDir, _ := os.UserHomeDir()
 		logDir = filepath.Join(homeDir, ".local", "share", "openp2p", "logs")
+	}
+
+	// 确保日志目录存在
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		// 如果创建失败，使用临时目录
+		fmt.Printf("创建日志目录失败: %v，将使用临时目录\n", err)
+		logDir = filepath.Join(os.TempDir(), "openp2p", "logs")
+		os.MkdirAll(logDir, 0755)
 	}
 
 	return logDir

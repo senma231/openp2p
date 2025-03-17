@@ -215,7 +215,9 @@ const fetchNodeInfo = async () => {
         status: data.status || 'offline',
         latency: data.latency || 0,
         bandwidth: data.bandwidth || 0,
-        lastSeen: data.lastSeen || new Date().toISOString()
+        lastSeen: data.lastSeen || new Date().toISOString(),
+        ip: data.ip || '未知',
+        type: data.type || 'client'
       }
       
       // 初始化编辑表单
@@ -225,6 +227,8 @@ const fetchNodeInfo = async () => {
         bandwidth: nodeInfo.value.bandwidth || 0,
         token: nodeInfo.value.token || ''
       }
+      
+      console.log('节点详情:', nodeInfo.value)
     } else {
       ElMessage.warning('未找到节点信息')
       router.push('/nodes')

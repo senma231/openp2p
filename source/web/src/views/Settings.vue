@@ -64,20 +64,12 @@ const updateUserInfo = async () => {
     
     userLoading.value = true
     try {
-      await apiUpdateUserInfo(userForm)
+      // 使用authStore中的方法更新用户信息
+      await authStore.updateUserInfo({
+        displayName: userForm.displayName,
+        email: userForm.email
+      })
       ElMessage.success('个人信息更新成功')
-      
-      // 更新本地存储的用户信息
-      if (authStore.user) {
-        const updatedUser = {
-          ...authStore.user,
-          displayName: userForm.displayName,
-          email: userForm.email
-        }
-        localStorage.setItem('user', JSON.stringify(updatedUser))
-        // 刷新authStore中的用户信息
-        await authStore.fetchUserInfo()
-      }
     } catch (error) {
       ElMessage.error(error.message || '更新失败')
     } finally {

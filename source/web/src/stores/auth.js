@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { login as loginApi, register as registerApi } from '../api'
-import { getUserInfo as getUserInfoApi } from '../api/user'
+import { login as loginApi, register as registerApi, getUserInfo as getUserInfoApi, updateUserInfo as updateUserInfoApi } from '../api'
 
 // 用户认证状态管理
 export const useAuthStore = defineStore('auth', () => {
@@ -41,12 +40,32 @@ export const useAuthStore = defineStore('auth', () => {
       if (response.code === 0 && response.data) {
         user.value = response.data
         localStorage.setItem('user', JSON.stringify(response.data))
+        console.log('User info fetched successfully:', response.data)
         return response.data
       }
+      console.error('Failed to fetch user info: Invalid response', response)
       return null
     } catch (error) {
       console.error('Failed to fetch user info:', error)
       return null
+    }
+  }
+
+  // 更新用户信息
+  const updateUserInfo = async (userData) => {
+    if (!token.value) throw new Error('未登录')
+    
+    try {
+      const response = await updateUserInfoApi(userData)
+      if (response.code === 0) {
+        // 更新成功后重新获取用户信息
+        await fetchUserInfo()
+        return true
+      }
+      throw new Error(response.message || '更新用户信息失败')
+    } catch (error) {
+      console.error('Failed to update user info:', error)
+      throw error
     }
   }
 
@@ -95,6 +114,7 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     logout,
     hasPermission,
-    fetchUserInfo
+    fetchUserInfo,
+    updateUserInfo
   }
 })
