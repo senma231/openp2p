@@ -3,18 +3,28 @@ package main
 import (
 	"flag"
 	"log"
+	"os"
 
 	"openp2p/core"
 )
 
-var isDev = flag.Bool("dev", true, "Run in development mode")
+var isDev = flag.Bool("dev", false, "Run in development mode")
 
 func main() {
 	flag.Parse()
 
+	// 设置环境变量
+	os.Setenv("OPENP2P_ENV", "production")
+	os.Setenv("GO_ENV", "production")
+	os.Setenv("GIN_MODE", "release")
+
 	// 设置开发模式
 	if *isDev {
 		log.Println("Running in development mode")
+		os.Setenv("OPENP2P_ENV", "development")
+		os.Setenv("GO_ENV", "development")
+	} else {
+		log.Println("Running in production mode")
 	}
 
 	// 初始化配置

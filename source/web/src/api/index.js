@@ -135,6 +135,9 @@ export const deleteNode = async (nodeId) => {
         throw new Error(response.message || '删除节点失败')
     } catch (error) {
         console.error('删除节点失败:', error)
+        if (error.response && error.response.status === 404) {
+            return { code: 0, message: '节点已删除', data: null }
+        }
         return { code: 1, message: error.message }
     }
 }

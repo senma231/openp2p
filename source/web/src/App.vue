@@ -70,7 +70,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Monitor, Connection, Share, Document, CaretBottom, SetUp } from '@element-plus/icons-vue'
 import { useAuthStore } from './stores/auth'
@@ -79,6 +79,20 @@ import { ElMessage } from 'element-plus'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+
+// 应用挂载时获取用户信息
+onMounted(async () => {
+  if (localStorage.getItem('token') && !authStore.user) {
+    try {
+      await authStore.fetchUserInfo()
+    } catch (error) {
+      console.error('Failed to fetch user info on app mount:', error)
+      // 如果获取用户信息失败，可能是token过期，清除登录状态
+      authStore.logout()
+      router.push('/login')
+    }
+  }
+})
 
 // 判断当前是否为登录页
 const isLoginPage = computed(() => {

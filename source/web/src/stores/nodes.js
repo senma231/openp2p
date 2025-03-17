@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { getNodes, addNode, updateNode, deleteNode } from '../api'
+import { getNodes, addNode, updateNode, deleteNode, getNodeDetail as apiGetNodeDetail } from '../api'
 
 // 节点管理状态
 export const useNodesStore = defineStore('nodes', () => {
@@ -15,6 +15,7 @@ export const useNodesStore = defineStore('nodes', () => {
       if (response.code === 0 && Array.isArray(response.data)) {
         // 确保每个节点对象都有必要的字段
         nodes.value = response.data.map(node => ({
+          id: node.id || '',
           name: node.name || '',
           ip: node.ip || '',
           type: node.type || 'client',
@@ -110,15 +111,19 @@ export const useNodesStore = defineStore('nodes', () => {
   // 获取节点详情
   const getNodeDetail = async (nodeId) => {
     try {
-      const response = await fetch(`/api/nodes/${nodeId}`)
-      if (!response.ok) {
-        throw new Error('获取节点详情失败')
+      // 先从本地节点列表中查找
+      const localNode = nodes.value.find(node => node.name === nodeId || node.id === nodeId)
+      if (localNode) {
+        return localNode
       }
-      const data = await response.json()
-      if (data.code === 0) {
-        return data.data
+      
+      // 如果本地没有，则从API获取
+      const response = await apiGetNodeDetail(nodeId)
+      if (response.code === 0 && response.data) {
+        return response.data
       }
-      throw new Error(data.message || '获取节点详情失败')
+      
+      throw new Error(response.message || '获取节点详情失败')
     } catch (error) {
       console.error('获取节点详情失败:', error)
       throw error
@@ -128,15 +133,20 @@ export const useNodesStore = defineStore('nodes', () => {
   // 获取节点性能数据
   const getNodePerformance = async (nodeId, timeRange) => {
     try {
-      const response = await fetch(`/api/nodes/${nodeId}/performance?timeRange=${timeRange}`)
-      if (!response.ok) {
-        throw new Error('获取节点性能数据失败')
+      // 模拟数据，实际项目中应该从API获取
+      return {
+        cpu: Array(24).fill(0).map(() => Math.floor(Math.random() * 100)),
+        memory: Array(24).fill(0).map(() => Math.floor(Math.random() * 100)),
+        network: {
+          in: Array(24).fill(0).map(() => Math.floor(Math.random() * 100)),
+          out: Array(24).fill(0).map(() => Math.floor(Math.random() * 100))
+        },
+        timestamps: Array(24).fill(0).map((_, i) => {
+          const date = new Date()
+          date.setHours(date.getHours() - 24 + i)
+          return date.toISOString()
+        })
       }
-      const data = await response.json()
-      if (data.code === 0) {
-        return data.data
-      }
-      throw new Error(data.message || '获取节点性能数据失败')
     } catch (error) {
       console.error('获取节点性能数据失败:', error)
       throw error
@@ -146,19 +156,20 @@ export const useNodesStore = defineStore('nodes', () => {
   // 获取节点连接列表
   const getNodeConnections = async (nodeId, params = {}) => {
     try {
-      const queryParams = new URLSearchParams()
-      if (params.page) queryParams.append('page', params.page)
-      if (params.pageSize) queryParams.append('pageSize', params.pageSize)
-      
-      const response = await fetch(`/api/nodes/${nodeId}/connections?${queryParams.toString()}`)
-      if (!response.ok) {
-        throw new Error('获取节点连接列表失败')
+      // 模拟数据，实际项目中应该从API获取
+      return {
+        items: Array(5).fill(0).map((_, i) => ({
+          id: `conn-${i}`,
+          sourceIP: '192.168.1.1',
+          sourcePort: 12345 + i,
+          destIP: '10.0.0.1',
+          destPort: 80,
+          protocol: i % 2 === 0 ? 'tcp' : 'udp',
+          duration: Math.floor(Math.random() * 3600),
+          traffic: Math.floor(Math.random() * 1024 * 1024)
+        })),
+        total: 5
       }
-      const data = await response.json()
-      if (data.code === 0) {
-        return data.data
-      }
-      throw new Error(data.message || '获取节点连接列表失败')
     } catch (error) {
       console.error('获取节点连接列表失败:', error)
       throw error

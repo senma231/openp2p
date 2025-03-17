@@ -200,15 +200,44 @@ const nodeForm = ref({
 const fetchNodeInfo = async () => {
   loading.value = true
   try {
+    // 先从store中获取节点列表
+    await nodesStore.fetchNodes()
+    
+    // 然后获取当前节点详情
     const data = await nodesStore.getNodeDetail(nodeName.value)
-    nodeInfo.value = data
-    // 初始化图表
-    if (data && data.status === 'online') {
-      initNetworkChart()
-      fetchPerformanceData()
+    if (data) {
+      nodeInfo.value = {
+        ...data,
+        // 确保所有必要字段都有默认值
+        status: data.status || 'offline',
+        latency: data.latency || 0,
+        bandwidth: data.bandwidth || 0,
+        cpuUsage: data.cpuUsage || 0,
+        memoryUsage: data.memoryUsage || 0,
+        diskUsage: data.diskUsage || 0,
+        lastSeen: data.lastSeen || new Date().toISOString()
+      }
+      
+      // 初始化编辑表单
+      nodeForm.value = {
+        name: nodeInfo.value.name || '',
+        type: nodeInfo.value.type || 'client',
+        bandwidth: nodeInfo.value.bandwidth || 0,
+        token: nodeInfo.value.token || ''
+      }
+      
+      // 初始化图表
+      if (nodeInfo.value.status === 'online') {
+        initNetworkChart()
+        fetchPerformanceData()
+      }
+    } else {
+      ElMessage.warning('未找到节点信息')
+      router.push('/nodes')
     }
   } catch (error) {
-    ElMessage.error('获取节点信息失败：' + error.message)
+    console.error('获取节点信息失败:', error)
+    ElMessage.error('获取节点信息失败：' + (error.message || '未知错误'))
   } finally {
     loading.value = false
   }
@@ -349,23 +378,31 @@ const updateNetworkChart = (data) => {
 
 // 编辑节点
 const editNode = () => {
+  if (!nodeInfo.value) return
+  
+  // 确保表单数据正确
   nodeForm.value = {
-    name: nodeInfo.value.name,
-    type: nodeInfo.value.type,
-    bandwidth: nodeInfo.value.bandwidth
+    name: nodeInfo.value.name || '',
+    type: nodeInfo.value.type || 'client',
+    bandwidth: nodeInfo.value.bandwidth || 0,
+    token: nodeInfo.value.token || ''
   }
+  
   dialogVisible.value = true
 }
 
 // 保存节点
 const saveNode = async () => {
+  if (!nodeInfo.value) return
+  
   try {
-    await nodesStore.updateNodeData(nodeName.value, nodeForm.value)
+    await nodesStore.updateNodeData(nodeInfo.value.name, nodeForm.value)
     ElMessage.success('更新成功')
     dialogVisible.value = false
+    // 重新获取节点信息
     fetchNodeInfo()
   } catch (error) {
-    ElMessage.error('保存失败：' + error.message)
+    ElMessage.error('保存失败：' + (error.message || '未知错误'))
   }
 }
 

@@ -189,18 +189,41 @@ const handleDialogClose = () => {
 
 // 查看节点详情
 const viewNodeDetail = (node) => {
+  if (!node || !node.name) {
+    ElMessage.warning('节点信息不完整，无法查看详情')
+    return
+  }
   router.push(`/nodes/${node.name}`)
 }
 
 // 编辑节点
 const editNode = (node) => {
+  if (!node) {
+    ElMessage.warning('节点信息不完整，无法编辑')
+    return
+  }
+  
   editingNode.value = node
-  nodeForm.value = { ...node }
+  // 确保表单数据正确
+  nodeForm.value = {
+    name: node.name || '',
+    token: node.token || '',
+    type: node.type || 'client',
+    bandwidth: node.bandwidth || 0,
+    privateIp: node.privateIp || '',
+    proxyNodeId: node.proxyNodeId || ''
+  }
+  
   dialogVisible.value = true
 }
 
 // 删除节点
 const deleteNode = (node) => {
+  if (!node || !node.name) {
+    ElMessage.warning('节点信息不完整，无法删除')
+    return
+  }
+  
   ElMessageBox.confirm(
     `确定要删除节点 ${node.name} 吗？`,
     '警告',
@@ -214,7 +237,7 @@ const deleteNode = (node) => {
       await nodesStore.removeNode(node.name)
       ElMessage.success('删除成功')
     } catch (error) {
-      ElMessage.error('删除失败：' + error.message)
+      ElMessage.error('删除失败：' + (error.message || '未知错误'))
     }
   }).catch(() => {})
 }
@@ -266,23 +289,25 @@ const generateToken = () => {
   nodeForm.value.token = token
 }
 
-// 自动刷新定时器
-let refreshTimer = null
-
-// 初始化加载节点列表
+// 组件挂载时获取节点列表
 onMounted(() => {
   nodesStore.fetchNodes()
-  // 每30秒自动刷新一次
-  refreshTimer = setInterval(() => {
+})
+
+// 定时刷新节点列表
+const refreshInterval = ref(null)
+onMounted(() => {
+  nodesStore.fetchNodes()
+  // 每30秒刷新一次节点列表
+  refreshInterval.value = setInterval(() => {
     nodesStore.fetchNodes()
   }, 30000)
 })
 
-// 组件卸载时清理
+// 组件卸载时清除定时器
 onUnmounted(() => {
-  if (refreshTimer) {
-    clearInterval(refreshTimer)
-    refreshTimer = null
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value)
   }
 })
 </script>

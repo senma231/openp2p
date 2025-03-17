@@ -25,57 +25,18 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
-    <el-card class="settings-card">
-      <template #header>
-        <div class="card-header">
-          <span>修改密码</span>
-        </div>
-      </template>
-      <el-form :model="passwordForm" :rules="passwordRules" ref="passwordFormRef" label-width="100px">
-        <el-form-item label="当前密码" prop="currentPassword">
-          <el-input 
-            v-model="passwordForm.currentPassword" 
-            type="password" 
-            placeholder="请输入当前密码"
-            show-password
-          />
-        </el-form-item>
-        <el-form-item label="新密码" prop="newPassword">
-          <el-input 
-            v-model="passwordForm.newPassword" 
-            type="password" 
-            placeholder="请输入新密码"
-            show-password
-          />
-        </el-form-item>
-        <el-form-item label="确认新密码" prop="confirmPassword">
-          <el-input 
-            v-model="passwordForm.confirmPassword" 
-            type="password" 
-            placeholder="请再次输入新密码"
-            show-password
-          />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="updatePassword" :loading="passwordLoading">更新密码</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
-import { updateUserInfo as apiUpdateUserInfo, updatePassword as apiUpdatePassword } from '../api/user'
+import { updateUserInfo as apiUpdateUserInfo } from '../api/user'
 
 const authStore = useAuthStore()
 const userFormRef = ref(null)
-const passwordFormRef = ref(null)
 const userLoading = ref(false)
-const passwordLoading = ref(false)
 
 // 用户信息表单
 const userForm = reactive({
@@ -84,36 +45,6 @@ const userForm = reactive({
   email: ''
 })
 
-// 密码表单
-const passwordForm = reactive({
-  currentPassword: '',
-  newPassword: '',
-  confirmPassword: ''
-})
-
-// 密码验证函数
-const validatePass = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('请输入新密码'))
-  } else {
-    if (passwordForm.confirmPassword !== '') {
-      passwordFormRef.value.validateField('confirmPassword')
-    }
-    callback()
-  }
-}
-
-// 确认密码验证函数
-const validateConfirmPass = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('请再次输入新密码'))
-  } else if (value !== passwordForm.newPassword) {
-    callback(new Error('两次输入密码不一致'))
-  } else {
-    callback()
-  }
-}
-
 // 用户信息表单验证规则
 const userRules = {
   displayName: [
@@ -121,20 +52,6 @@ const userRules = {
   ],
   email: [
     { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
-  ]
-}
-
-// 密码表单验证规则
-const passwordRules = {
-  currentPassword: [
-    { required: true, message: '请输入当前密码', trigger: 'blur' }
-  ],
-  newPassword: [
-    { required: true, validator: validatePass, trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于6个字符', trigger: 'blur' }
-  ],
-  confirmPassword: [
-    { required: true, validator: validateConfirmPass, trigger: 'blur' }
   ]
 }
 
@@ -150,36 +67,22 @@ const updateUserInfo = async () => {
       // TODO: 调用API更新用户信息
       await apiUpdateUserInfo(userForm)
       ElMessage.success('个人信息更新成功')
+      
+      // 更新本地存储的用户信息
+      if (authStore.user) {
+        const updatedUser = {
+          ...authStore.user,
+          displayName: userForm.displayName,
+          email: userForm.email
+        }
+        localStorage.setItem('user', JSON.stringify(updatedUser))
+        // 刷新authStore中的用户信息
+        await authStore.fetchUserInfo()
+      }
     } catch (error) {
       ElMessage.error(error.message || '更新失败')
     } finally {
       userLoading.value = false
-    }
-  })
-}
-
-// 更新密码
-const updatePassword = async () => {
-  if (!passwordFormRef.value) return
-  
-  await passwordFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    
-    passwordLoading.value = true
-    try {
-      await apiUpdatePassword({
-        currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword
-      })
-      ElMessage.success('密码更新成功')
-      passwordForm.currentPassword = ''
-      passwordForm.newPassword = ''
-      passwordForm.confirmPassword = ''
-      passwordFormRef.value.resetFields()
-    } catch (error) {
-      ElMessage.error(error.message || '更新密码失败')
-    } finally {
-      passwordLoading.value = false
     }
   })
 }
@@ -193,9 +96,23 @@ const getUserInfo = () => {
   }
 }
 
+// 监听authStore.user变化，更新表单
+watch(() => authStore.user, (newUser) => {
+  if (newUser) {
+    getUserInfo()
+  }
+}, { immediate: true })
+
 // 组件挂载时获取用户信息
 onMounted(() => {
   getUserInfo()
+  
+  // 如果没有用户信息，尝试重新获取
+  if (!authStore.user) {
+    authStore.fetchUserInfo().then(() => {
+      getUserInfo()
+    })
+  }
 })
 </script>
 
