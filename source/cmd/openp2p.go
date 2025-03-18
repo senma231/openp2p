@@ -51,3 +51,26 @@ func main() {
 	// 保持程序运行
 	select {}
 }
+
+// 在连接服务器前进行网络诊断
+core.DiagnoseNetwork(config.Server, config.Port)
+
+// 连接服务器的代码
+conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", config.Server, config.Port))
+if err != nil {
+    log.Printf("连接服务器失败: %v", err)
+    // 添加重试逻辑
+    for i := 0; i < 3; i++ {
+        log.Printf("尝试重新连接 (%d/3)...", i+1)
+        time.Sleep(2 * time.Second)
+        conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", config.Server, config.Port))
+        if err == nil {
+            break
+        }
+        log.Printf("重新连接失败: %v", err)
+    }
+    if err != nil {
+        log.Fatalf("无法连接到服务器，请检查网络和配置: %v", err)
+    }
+}
+log.Printf("成功连接到服务器 %s:%d", config.Server, config.Port)

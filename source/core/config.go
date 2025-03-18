@@ -516,3 +516,55 @@ func parseParams(subCommand string, cmd string) {
 	// gConf.mtx.Unlock()
 	gConf.save()
 }
+
+// 验证配置
+func (c *Config) Validate() error {
+    if c.Server == "" {
+        return errors.New("服务器地址不能为空")
+    }
+    if c.Port == 0 {
+        return errors.New("服务器端口不能为0")
+    }
+    if c.Name == "" {
+        return errors.New("节点名称不能为空")
+    }
+    if c.Token == "" {
+        return errors.New("节点令牌不能为空")
+    }
+    return nil
+}
+
+// 在加载配置后添加验证
+func LoadConfig(path string) (*Config, error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	data, err := os.ReadFile("config.json")
+	if err != nil {
+		return c.loadCache()
+	}
+	err = json.Unmarshal(data, &c)
+	if err != nil {
+		gLog.Println(LvERROR, "parse config.json error:", err)
+		// try cache
+		return c.loadCache()
+	}
+	// load ok. cache it
+	var filteredApps []*AppConfig // filter memapp
+	for _, app := range c.Apps {
+		if app.SrcPort != 0 {
+			filteredApps = append(filteredApps, app)
+		}
+	}
+	c.Apps = filteredApps
+	c.saveCache()
+	
+	// 添加配置验证
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("配置验证失败: %v", err)
+	}
+	
+	log.Printf("成功加载配置文件: %s", path)
+	log.Printf("节点名称: %s, 服务器: %s:%d", config.Name, config.Server, config.Port)
+	
+	return config, nil
+}
