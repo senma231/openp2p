@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: ['1.20']
+        go-version: ['1.22.0']
         node-version: ['16']
 
     steps:
@@ -70,7 +70,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.20'
+        go-version: '1.22.0'
 
     - name: Build for multiple platforms
       run: |
