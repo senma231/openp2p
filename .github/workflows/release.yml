@@ -90,7 +90,8 @@ jobs:
           
           - [Windows 64位](openp2p-windows-amd64-${{ env.VERSION }}.zip)
           - [Linux 64位](openp2p-linux-amd64-${{ env.VERSION }}.zip)
-          - [macOS 64位](openp2p-macos-amd64-${{ env.VERSION }}.zip)
+          - [macOS Intel](openp2p-macos-amd64-${{ env.VERSION }}.zip)
+          - [macOS Apple Silicon](openp2p-macos-arm64-${{ env.VERSION }}.zip)
           
           ## 安装说明
           
