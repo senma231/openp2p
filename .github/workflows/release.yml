@@ -35,18 +35,25 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git tag ${{ env.VERSION }}
-          git push origin ${{ env.VERSION }}
+          git tag -f ${{ env.VERSION }}
+          git push -f origin ${{ env.VERSION }}
 
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
+        if: github.ref == 'refs/heads/dev'
         with:
           tag_name: ${{ env.VERSION }}
           name: Release ${{ env.VERSION }}
           draft: false
-          prerelease: ${{ github.ref != 'refs/tags/*' }}
+          prerelease: true
           token: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            release/openp2p-windows-amd64-${{ env.VERSION }}.zip
+            release/openp2p-linux-amd64-${{ env.VERSION }}.zip
+            release/openp2p-macos-amd64-${{ env.VERSION }}.zip
+            release/openp2p-macos-arm64-${{ env.VERSION }}.zip
+          body_path: release/release_notes_${{ env.VERSION }}.md
 
       - name: Create release directory
         run: mkdir -p release/${{ env.VERSION }}
