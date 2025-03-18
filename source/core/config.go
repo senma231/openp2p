@@ -84,6 +84,11 @@ type Config struct {
 	Network NetworkConfig `json:"network"`
 	Apps    []*AppConfig  `json:"apps"`
 
+	Server string `json:"server"`
+	Port   int    `json:"port"`
+	Name   string `json:"name"`
+	Token  string `json:"token"`
+
 	LogLevel   int
 	MaxLogSize int
 	daemonMode bool
@@ -541,27 +546,26 @@ func (c *Config) Validate() error {
 
 // 在加载配置后添加验证
 func LoadConfig(path string) (*Config, error) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	data, err := os.ReadFile("config.json")
+	config := &Config{}
+	config.mtx.Lock()
+	defer config.mtx.Unlock()
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return c.loadCache()
+		return nil, err
 	}
-	err = json.Unmarshal(data, &c)
+	err = json.Unmarshal(data, config)
 	if err != nil {
 		gLog.Println(LvERROR, "parse config.json error:", err)
-		// try cache
-		return c.loadCache()
+		return nil, err
 	}
 	// load ok. cache it
 	var filteredApps []*AppConfig // filter memapp
-	for _, app := range c.Apps {
+	for _, app := range config.Apps {
 		if app.SrcPort != 0 {
 			filteredApps = append(filteredApps, app)
 		}
 	}
-	c.Apps = filteredApps
-	c.saveCache()
+	config.Apps = filteredApps
 
 	// 添加配置验证
 	if err := config.Validate(); err != nil {
