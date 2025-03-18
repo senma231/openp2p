@@ -4,29 +4,31 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - 'dev'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v4
         with:
           go-version: '1.22.0'
 
       - name: Get Version
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-
-      - name: Build
         run: |
-          chmod +x build.sh
-          ./build.sh
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          else
+            echo "VERSION=dev-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_ENV
+          fi
 
       - name: Create Release
         id: create_release
@@ -34,50 +36,25 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref }}
+          tag_name: ${{ env.VERSION }}
           release_name: Release ${{ env.VERSION }}
           draft: false
-          prerelease: false
-
-      - name: Upload Server Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/openp2p-server-${{ env.VERSION }}.zip
-          asset_name: openp2p-server-${{ env.VERSION }}.zip
-          asset_content_type: application/zip
-
-      - name: Upload Client Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/openp2p-client-${{ env.VERSION }}.zip
-          asset_name: openp2p-client-${{ env.VERSION }}.zip
-          asset_content_type: application/zip
+          prerelease: ${{ github.ref != 'refs/tags/*' }}
 
       - name: Create release directory
         run: mkdir -p release/${{ env.VERSION }}
 
-      - name: Build Windows client
+      - name: Build Clients
         run: |
           cd source
+          # Windows
           GOOS=windows GOARCH=amd64 go build -o "../release/${{ env.VERSION }}/openp2p-windows-amd64.exe" ./cmd/openp2p.go
-          cd ..
-
-      - name: Build Linux client
-        run: |
-          cd source
+          # Linux
           GOOS=linux GOARCH=amd64 go build -o "../release/${{ env.VERSION }}/openp2p-linux-amd64" ./cmd/openp2p.go
-          cd ..
-
-      - name: Build macOS client
-        run: |
-          cd source
+          # macOS Intel
           GOOS=darwin GOARCH=amd64 go build -o "../release/${{ env.VERSION }}/openp2p-macos-amd64" ./cmd/openp2p.go
+          # macOS Apple Silicon
+          GOOS=darwin GOARCH=arm64 go build -o "../release/${{ env.VERSION }}/openp2p-macos-arm64" ./cmd/openp2p.go
           cd ..
 
       - name: Copy documentation and config files
@@ -93,6 +70,7 @@ jobs:
           zip -r "../openp2p-windows-amd64-${{ env.VERSION }}.zip" openp2p-windows-amd64.exe README.md VERSION.md 客户端安装指南.md config.json
           zip -r "../openp2p-linux-amd64-${{ env.VERSION }}.zip" openp2p-linux-amd64 README.md VERSION.md 客户端安装指南.md config.json
           zip -r "../openp2p-macos-amd64-${{ env.VERSION }}.zip" openp2p-macos-amd64 README.md VERSION.md 客户端安装指南.md config.json
+          zip -r "../openp2p-macos-arm64-${{ env.VERSION }}.zip" openp2p-macos-arm64 README.md VERSION.md 客户端安装指南.md config.json
           cd ../..
 
       - name: Create release notes
@@ -138,4 +116,4 @@ jobs:
             release/openp2p-linux-amd64-${{ env.VERSION }}.zip
             release/openp2p-macos-amd64-${{ env.VERSION }}.zip
           body_path: release/release_notes_${{ env.VERSION }}.md
-          token: ${{ secrets.GITHUB_TOKEN }} 
+          token: ${{ secrets.GITHUB_TOKEN }}
