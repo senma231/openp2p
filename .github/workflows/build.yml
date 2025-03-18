@@ -78,6 +78,7 @@ jobs:
         GOOS=linux GOARCH=amd64 go build -o ../dist/openp2p-linux-amd64
         GOOS=windows GOARCH=amd64 go build -o ../dist/openp2p-windows-amd64.exe
         GOOS=darwin GOARCH=amd64 go build -o ../dist/openp2p-darwin-amd64
+        GOOS=darwin GOARCH=arm64 go build -o ../dist/openp2p-darwin-arm64
 
     - name: Create Release
       id: create_release
@@ -118,4 +119,4 @@ jobs:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./source/dist/openp2p-darwin-amd64
         asset_name: openp2p-darwin-amd64
-        asset_content_type: application/octet-stream 
+        asset_content_type: application/octet-stream
