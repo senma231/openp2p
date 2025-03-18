@@ -2,8 +2,10 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -389,6 +391,9 @@ type NetworkConfig struct {
 	hasUPNPorNATPMP int
 	ShareBandwidth  int
 	// server info
+	Server     string
+	Port       int
+	Name       string
 	ServerHost string
 	ServerPort int
 	UDPPort1   int
@@ -519,19 +524,19 @@ func parseParams(subCommand string, cmd string) {
 
 // 验证配置
 func (c *Config) Validate() error {
-    if c.Server == "" {
-        return errors.New("服务器地址不能为空")
-    }
-    if c.Port == 0 {
-        return errors.New("服务器端口不能为0")
-    }
-    if c.Name == "" {
-        return errors.New("节点名称不能为空")
-    }
-    if c.Token == "" {
-        return errors.New("节点令牌不能为空")
-    }
-    return nil
+	if c.Server == "" {
+		return errors.New("服务器地址不能为空")
+	}
+	if c.Port == 0 {
+		return errors.New("服务器端口不能为0")
+	}
+	if c.Name == "" {
+		return errors.New("节点名称不能为空")
+	}
+	if c.Token == "" {
+		return errors.New("节点令牌不能为空")
+	}
+	return nil
 }
 
 // 在加载配置后添加验证
@@ -557,14 +562,14 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	c.Apps = filteredApps
 	c.saveCache()
-	
+
 	// 添加配置验证
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("配置验证失败: %v", err)
 	}
-	
+
 	log.Printf("成功加载配置文件: %s", path)
 	log.Printf("节点名称: %s, 服务器: %s:%d", config.Name, config.Server, config.Port)
-	
+
 	return config, nil
 }
