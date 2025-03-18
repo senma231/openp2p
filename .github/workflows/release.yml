@@ -136,5 +136,6 @@ jobs:
             release/openp2p-windows-amd64-${{ env.VERSION }}.zip
             release/openp2p-linux-amd64-${{ env.VERSION }}.zip
             release/openp2p-macos-amd64-${{ env.VERSION }}.zip
+            release/openp2p-macos-arm64-${{ env.VERSION }}.zip
           body_path: release/release_notes_${{ env.VERSION }}.md
           token: ${{ secrets.GITHUB_TOKEN }}
