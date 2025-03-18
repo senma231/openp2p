@@ -1,6 +1,9 @@
 package core
 
 import (
+	"filepath"
+	"fmt"
+	"io"
 	"log"
 	"os"
 	"runtime"
@@ -173,41 +176,40 @@ func (l *logger) Println(level LogLevel, params ...interface{}) {
 	}
 }
 
-
 // 初始化日志
 func InitLogger(logLevel int) {
-    // 获取可执行文件所在目录
-    execPath, err := os.Executable()
-    if err != nil {
-        fmt.Printf("获取可执行文件路径失败: %v\n", err)
-        return
-    }
-    
-    // 使用可执行文件所在目录作为日志目录
-    logDir := filepath.Join(filepath.Dir(execPath), "logs")
-    
-    // 创建日志目录
-    if err := os.MkdirAll(logDir, 0755); err != nil {
-        fmt.Printf("创建日志目录失败: %v\n", err)
-        return
-    }
-    
-    // 生成日志文件名
-    now := time.Now()
-    logFileName := filepath.Join(logDir, fmt.Sprintf("client_%s.log", now.Format("20060102")))
-    
-    // 打开日志文件
-    logFile, err := os.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-    if err != nil {
-        fmt.Printf("打开日志文件失败: %v\n", err)
-        return
-    }
-    
-    // 设置日志输出到文件和控制台
-    log.SetOutput(io.MultiWriter(logFile, os.Stdout))
-    
-    // 设置日志格式
-    log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-    
-    log.Printf("日志初始化完成，级别: %d, 路径: %s", logLevel, logFileName)
+	// 获取可执行文件所在目录
+	execPath, err := os.Executable()
+	if err != nil {
+		fmt.Printf("获取可执行文件路径失败: %v\n", err)
+		return
+	}
+
+	// 使用可执行文件所在目录作为日志目录
+	logDir := filepath.Join(filepath.Dir(execPath), "logs")
+
+	// 创建日志目录
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		fmt.Printf("创建日志目录失败: %v\n", err)
+		return
+	}
+
+	// 生成日志文件名
+	now := time.Now()
+	logFileName := filepath.Join(logDir, fmt.Sprintf("client_%s.log", now.Format("20060102")))
+
+	// 打开日志文件
+	logFile, err := os.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Printf("打开日志文件失败: %v\n", err)
+		return
+	}
+
+	// 设置日志输出到文件和控制台
+	log.SetOutput(io.MultiWriter(logFile, os.Stdout))
+
+	// 设置日志格式
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+
+	log.Printf("日志初始化完成，级别: %d, 路径: %s", logLevel, logFileName)
 }
