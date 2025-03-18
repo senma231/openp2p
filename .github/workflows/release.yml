@@ -40,24 +40,44 @@ jobs:
           prerelease: false
           generate_release_notes: true
 
-      - name: Upload Server Release Asset
+      - name: Upload Windows Release Asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/openp2p-server-${{ env.VERSION }}.zip
-          asset_name: openp2p-server-${{ env.VERSION }}.zip
+          asset_path: ./release/openp2p-windows-amd64-${{ env.VERSION }}.zip
+          asset_name: openp2p-windows-amd64-${{ env.VERSION }}.zip
           asset_content_type: application/zip
 
-      - name: Upload Client Release Asset
+      - name: Upload Linux Release Asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/openp2p-client-${{ env.VERSION }}.zip
-          asset_name: openp2p-client-${{ env.VERSION }}.zip
+          asset_path: ./release/openp2p-linux-amd64-${{ env.VERSION }}.zip
+          asset_name: openp2p-linux-amd64-${{ env.VERSION }}.zip
+          asset_content_type: application/zip
+
+      - name: Upload macOS Intel Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./release/openp2p-macos-amd64-${{ env.VERSION }}.zip
+          asset_name: openp2p-macos-amd64-${{ env.VERSION }}.zip
+          asset_content_type: application/zip
+
+      - name: Upload macOS Apple Silicon Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./release/openp2p-macos-arm64-${{ env.VERSION }}.zip
+          asset_name: openp2p-macos-arm64-${{ env.VERSION }}.zip
           asset_content_type: application/zip
 
       - name: Create release directory
